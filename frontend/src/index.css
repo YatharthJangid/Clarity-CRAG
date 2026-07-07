@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+@theme {
+  --color-surface: #0b0d14;
+  --color-surface-raised: #12151f;
+  --color-surface-sidebar: #0e1018;
+  --color-border-subtle: #232636;
+  --color-accent-from: #6366f1;
+  --color-accent-to: #a855f7;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--color-surface);
+  color: #e5e7f0;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2a2e40;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3f57;
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.25s ease-out;
+}
+
+@keyframes bounce-dot {
+  0%,
+  80%,
+  100% {
+    transform: scale(0.6);
+    opacity: 0.4;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.thinking-dot {
+  animation: bounce-dot 1.2s infinite ease-in-out;
+}

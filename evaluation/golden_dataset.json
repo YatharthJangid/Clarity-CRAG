@@ -1,0 +1,67 @@
+[
+  {
+    "id": "q01",
+    "question": "What is a transformer in deep learning?",
+    "ground_truth": "A transformer is a neural network architecture built entirely on self-attention mechanisms instead of recurrence or convolution. It uses an encoder-decoder structure where each layer applies multi-head self-attention followed by a position-wise feed-forward network, with residual connections and layer normalization. Because it processes tokens in parallel rather than sequentially, it captures long-range dependencies more efficiently than RNNs and is the basis for models like BERT and GPT."
+  },
+  {
+    "id": "q02",
+    "question": "What are attention mechanisms and why are they important in current models?",
+    "ground_truth": "Attention mechanisms let a model learn to weigh the relevance of different input elements to each other when producing a representation or output, instead of relying on a fixed-size hidden state. Self-attention computes a weighted sum over all tokens in a sequence, where the weights are derived from query-key similarity. This lets models capture long-range dependencies directly, parallelize computation across the sequence, and is the core building block of transformer-based architectures used in modern NLP and vision models."
+  },
+  {
+    "id": "q03",
+    "question": "Explain the bias-variance tradeoff.",
+    "ground_truth": "The bias-variance tradeoff describes how a model's total prediction error decomposes into bias (error from overly simplistic assumptions that cause underfitting), variance (error from excessive sensitivity to the training data that causes overfitting), and irreducible noise. Increasing model complexity typically reduces bias but increases variance, and vice versa. Good generalization requires balancing the two, often via regularization, more data, or model selection techniques like cross-validation."
+  },
+  {
+    "id": "q04",
+    "question": "Batch normalization vs layer normalization - what is the difference?",
+    "ground_truth": "Batch normalization normalizes activations across the batch dimension for each feature, using batch statistics (mean/variance) computed per mini-batch, which works well for CNNs and feedforward nets but degrades with small batch sizes and is awkward for variable-length sequences. Layer normalization instead normalizes across the feature dimension for each individual example, independent of batch size, which makes it well-suited to RNNs, transformers, and settings with small or variable batch sizes."
+  },
+  {
+    "id": "q05",
+    "question": "What is dropout and how does it help prevent overfitting?",
+    "ground_truth": "Dropout is a regularization technique that randomly zeroes out (drops) a fraction of neuron activations during each training step, forcing the network to not rely too heavily on any single neuron and effectively training an ensemble of thinned sub-networks. At test time, all neurons are used with their outputs scaled to account for the dropped units during training. This reduces co-adaptation of neurons and improves generalization, reducing overfitting."
+  },
+  {
+    "id": "q06",
+    "question": "What is the vanishing gradient problem and how is it addressed?",
+    "ground_truth": "The vanishing gradient problem occurs when gradients shrink exponentially as they are backpropagated through many layers or time steps, making earlier layers train extremely slowly or not at all. It is commonly caused by saturating activation functions like sigmoid or tanh. Common fixes include using ReLU-family activations, residual/skip connections, careful weight initialization (e.g., Xavier/He initialization), batch/layer normalization, and gated architectures like LSTMs/GRUs for sequence models."
+  },
+  {
+    "id": "q07",
+    "question": "How does gradient descent optimize a neural network's parameters?",
+    "ground_truth": "Gradient descent iteratively updates a model's parameters by moving them in the direction opposite to the gradient of the loss function with respect to the parameters, scaled by a learning rate. Variants like stochastic gradient descent (SGD) compute the gradient on mini-batches rather than the full dataset for efficiency, while adaptive optimizers like Adam maintain per-parameter learning rates using running estimates of the gradient's first and second moments to converge faster and more robustly."
+  },
+  {
+    "id": "q08",
+    "question": "What is backpropagation?",
+    "ground_truth": "Backpropagation is the algorithm used to compute gradients of a neural network's loss function with respect to every parameter, by applying the chain rule of calculus and propagating error signals backward from the output layer through each preceding layer. These gradients are then used by an optimization algorithm such as gradient descent to update the weights and reduce the loss."
+  },
+  {
+    "id": "q09",
+    "question": "What distinguishes a convolutional neural network (CNN) from a fully connected network for image tasks?",
+    "ground_truth": "CNNs use convolutional layers with small, shared filters that slide across the input, exploiting spatial locality and translation invariance, which drastically reduces the number of parameters compared to fully connected layers that connect every input pixel to every neuron. Pooling layers further reduce spatial dimensions and add robustness to small translations. This makes CNNs far more parameter-efficient and effective for image and grid-like data than fully connected networks."
+  },
+  {
+    "id": "q10",
+    "question": "Why are LSTMs better than vanilla RNNs at capturing long-range dependencies?",
+    "ground_truth": "LSTMs (Long Short-Term Memory networks) introduce a memory cell along with input, forget, and output gates that regulate how information is added to, retained in, or removed from the cell state. This gating mechanism allows gradients to flow through many time steps largely unimpeded, mitigating the vanishing gradient problem that plagues vanilla RNNs and allowing LSTMs to capture much longer-range temporal dependencies."
+  },
+  {
+    "id": "q11",
+    "question": "What is overfitting and what techniques help reduce it?",
+    "ground_truth": "Overfitting occurs when a model learns patterns specific to the training data, including noise, so that it performs well on training data but generalizes poorly to unseen data. Techniques to reduce overfitting include regularization (L1/L2), dropout, early stopping, data augmentation, reducing model complexity, and using more training data or cross-validation to tune hyperparameters."
+  },
+  {
+    "id": "q12",
+    "question": "What is the purpose of an activation function in a neural network?",
+    "ground_truth": "An activation function introduces non-linearity into a neural network, allowing it to model complex, non-linear relationships between inputs and outputs. Without non-linear activation functions, stacking multiple linear layers would collapse into an equivalent single linear transformation. Common activation functions include ReLU, sigmoid, tanh, and softmax, each with different properties around gradient flow and output range."
+  },
+  {
+    "id": "q13",
+    "question": "What are word/token embeddings and why are they useful?",
+    "ground_truth": "Embeddings are dense, learned vector representations of discrete tokens (such as words or subwords) that place semantically or functionally similar tokens close together in a continuous vector space. They are useful because they let neural networks operate on a compact, differentiable numeric representation of categorical data instead of high-dimensional, sparse one-hot vectors, and the learned geometry often captures meaningful semantic relationships."
+  }
+]
