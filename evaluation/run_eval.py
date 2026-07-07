@@ -32,11 +32,10 @@ RESULTS_DIR.mkdir(exist_ok=True)
 
 sys.path.insert(0, str(BACKEND_DIR))
 
-from app.config import settings  # noqa: E402
 from app.crag.graph import build_graph  # noqa: E402
-from app.crag.llm import llm  # noqa: E402
+from app.crag.llm import llm, primary_llm  # noqa: E402
 from app.crag.prompts import answer_prompt  # noqa: E402
-from app.crag.vectorstore import get_retriever  # noqa: E402
+from app.crag.vectorstore import embeddings, get_retriever  # noqa: E402
 
 from ragas import EvaluationDataset, evaluate  # noqa: E402
 from ragas.metrics import (  # noqa: E402
@@ -46,7 +45,6 @@ from ragas.metrics import (  # noqa: E402
     context_recall,
     faithfulness,
 )
-from langchain_openai import OpenAIEmbeddings  # noqa: E402
 
 METRICS = [faithfulness, answer_relevancy, context_precision, context_recall, answer_correctness]
 METRIC_LABELS = {
@@ -105,8 +103,9 @@ def run_pipeline(golden, answer_fn, label):
 
 def score(rows, name):
     dataset = EvaluationDataset.from_list(rows)
-    embeddings = OpenAIEmbeddings(model=settings.embedding_model, openai_api_key=settings.openai_api_key)
-    result = evaluate(dataset=dataset, metrics=METRICS, llm=llm, embeddings=embeddings)
+    # ragas wants a plain BaseChatModel, not the RunnableWithFallbacks that `llm`
+    # is - so it gets the raw Gemini model directly rather than the fallback chain.
+    result = evaluate(dataset=dataset, metrics=METRICS, llm=primary_llm, embeddings=embeddings)
     df = result.to_pandas()
     df.to_csv(RESULTS_DIR / f"per_question_{name}.csv", index=False)
     return df

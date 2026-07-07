@@ -17,7 +17,7 @@ export default function Sidebar({ threads, activeThreadId, onNewChat, onSelectTh
         </div>
         <div>
           <h1 className="text-sm font-semibold text-slate-100">Clarity CRAG</h1>
-          <p className="text-xs text-slate-500">Self-Correcting Study Assistant</p>
+          <p className="text-xs text-slate-500">Corrective RAG Study Assistant</p>
         </div>
       </div>
 

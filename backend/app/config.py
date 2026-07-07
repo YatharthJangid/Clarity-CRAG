@@ -15,7 +15,8 @@ os.environ.setdefault("LANGCHAIN_PROJECT", "Clarity CRAG")
 
 
 class Settings:
-    openai_api_key: str = os.environ.get("OPENAI_API_KEY", "")
+    gemini_api_key: str = os.environ.get("GEMINI_API_KEY", "")
+    groq_api_key: str = os.environ.get("GROQ_API_KEY", "")
     tavily_api_key: str = os.environ.get("TAVILY_API_KEY", "")
 
     pinecone_api_key: str = os.environ.get("PINECONE_API_KEY", "")
@@ -23,9 +24,21 @@ class Settings:
     pinecone_cloud: str = os.environ.get("PINECONE_CLOUD", "aws")
     pinecone_region: str = os.environ.get("PINECONE_REGION", "us-east-1")
 
-    embedding_model: str = os.environ.get("EMBEDDING_MODEL", "text-embedding-3-large")
-    embedding_dimension: int = 3072
-    chat_model: str = os.environ.get("CHAT_MODEL", "gpt-4o-mini")
+    # Gemini 2.5 Flash (free tier) is primary for both chat and embeddings; Groq's
+    # Qwen3 model is the fallback chat model when Gemini errors out or rate-limits.
+    # Groq has no embeddings endpoint, so the embeddings fallback is a local
+    # FastEmbed (ONNX, no torch/tensorflow) model instead - see app/crag/vectorstore.py.
+    chat_model: str = os.environ.get("CHAT_MODEL", "gemini-2.5-flash")
+    fallback_chat_model: str = os.environ.get("FALLBACK_CHAT_MODEL", "qwen/qwen3-32b")
+
+    embedding_model: str = os.environ.get("EMBEDDING_MODEL", "models/gemini-embedding-001")
+    fallback_embedding_model: str = os.environ.get(
+        "FALLBACK_EMBEDDING_MODEL", "jinaai/jina-embeddings-v2-small-en"
+    )
+    # Both the Gemini (truncated via Matryoshka Representation Learning) and FastEmbed
+    # fallback embeddings output 512 dims so they can share one Pinecone index
+    # regardless of which one served a given request.
+    embedding_dimension: int = int(os.environ.get("EMBEDDING_DIMENSION", 512))
 
     upper_threshold: float = float(os.environ.get("UPPER_TH", 0.7))
     lower_threshold: float = float(os.environ.get("LOWER_TH", 0.3))

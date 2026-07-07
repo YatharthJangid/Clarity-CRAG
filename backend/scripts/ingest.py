@@ -40,7 +40,7 @@ def main():
     print(f"Ensuring Pinecone index '{settings.pinecone_index_name}' exists ...")
     ensure_index()
 
-    print("Upserting chunks into Pinecone (this calls OpenAI embeddings for each chunk) ...")
+    print("Upserting chunks into Pinecone (this calls Gemini embeddings for each chunk) ...")
     vector_store = get_vector_store()
     batch_size = 100
     for i in range(0, len(chunks), batch_size):

@@ -1,6 +1,29 @@
-# ✨ Clarity CRAG — Self-Correcting Study Assistant
+# ✨ Clarity CRAG — Corrective RAG Study Assistant
 
-> A Corrective RAG (CRAG) chat app that **grades its own retrieval**, falls back to **live web search** when it's not confident, and only ever answers from evidence it actually trusts.
+> A **Corrective RAG (CRAG)** chat app that grades its own retrieval, falls back to **live web search** when it's not confident, and only ever answers from evidence it actually trusts.
+
+---
+
+## 📄 The paper this is built on
+
+Corrective RAG comes from **[Corrective Retrieval Augmented Generation](https://arxiv.org/abs/2401.15884)** (arXiv:2401.15884), submitted January 2024 by Shi-Qi Yan and Zhen-Hua Ling (University of Science and Technology of China), Jia-Chen Gu (UCLA), and Yun Zhu (**Google DeepMind**).
+
+<p align="center"><img src="assets/CRAG.png" alt="CRAG concept diagram" width="640"></p>
+<p align="center"><sub>Figure from the paper: a lightweight retrieval evaluator scores confidence and routes to one of three knowledge-source strategies — Correct, Incorrect, or Ambiguous.</sub></p>
+
+Standard RAG trusts whatever the retriever returns, even when it's irrelevant. The paper's fix is a lightweight retrieval evaluator (a fine-tuned T5-large in the paper; an LLM judge in this project) that scores each retrieved chunk and decides one of three actions:
+
+- **Correct** — the internal documents are good enough, refine and use them as-is.
+- **Incorrect** — discard them and fall back to a web search instead.
+- **Ambiguous** — blend refined internal documents with web search results.
+
+Either way, the surviving text is decomposed into small "strips," each strip is filtered for relevance, and only the strips that pass are recomposed into the context the LLM finally answers from — the paper calls this **decompose-then-recompose** knowledge refinement.
+
+For a deeper walkthrough of the paper, see Sulbha Jain's review: [Corrective Retrieval Augmented Generation (CRAG) — Paper Review](https://sulbhajain.medium.com/corrective-retrieval-augmented-generation-crag-paper-review-2bf9fe0f3b31).
+
+This repo is a from-scratch, production implementation of that idea (FastAPI + LangGraph + Pinecone) — not the paper's official code.
+
+---
 
 Built on top of an iterative six-notebook research process, then productionized into a FastAPI backend + React chat UI, with Pinecone for vectors, SQLite-backed per-thread memory, LangSmith tracing, and a golden-dataset evaluation harness proving CRAG beats naive RAG.
 
@@ -8,6 +31,7 @@ Built on top of an iterative six-notebook research process, then productionized 
 
 ## 📚 Table of contents
 
+- [📄 The paper this is built on](#-the-paper-this-is-built-on)
 - [🧠 What is CRAG, and why does it matter?](#-what-is-crag-and-why-does-it-matter)
 - [🏗️ Architecture](#️-architecture)
 - [🕸️ The graph](#️-the-graph)
@@ -25,7 +49,7 @@ Built on top of an iterative six-notebook research process, then productionized 
 
 ## 🧠 What is CRAG, and why does it matter?
 
-Plain RAG has a blind spot: it retrieves top-*k* chunks and trusts them unconditionally, even when they're irrelevant or only partially useful. **Corrective RAG (CRAG)** adds a self-critique loop on top of retrieval:
+Plain RAG has a blind spot: it retrieves top-*k* chunks and trusts them unconditionally, even when they're irrelevant or only partially useful. **Corrective RAG (CRAG)** adds a correction loop on top of retrieval:
 
 1. 🔍 **Retrieve** candidate chunks from the vector store.
 2. 🧑‍⚖️ **Grade every chunk** with an LLM judge that scores relevance from `0.0` → `1.0`.
@@ -38,9 +62,6 @@ Plain RAG has a blind spot: it retrieves top-*k* chunks and trusts them uncondit
 6. 💬 **Generate** the final answer strictly from the refined, filtered context — never from raw retrieval.
 
 The payoff: fewer hallucinations, graceful degradation when the knowledge base doesn't cover a question, and a transparent verdict you can show the user (see the badges in the chat UI 👇).
-
-<p align="center"><img src="assets/CRAG.png" alt="CRAG concept diagram" width="640"></p>
-<p align="center"><sub>Figure from the original <a href="https://arxiv.org/abs/2401.15884">Corrective Retrieval Augmented Generation</a> paper (Yan et al., 2024) — the concept this project implements end-to-end.</sub></p>
 
 ---
 
@@ -56,8 +77,8 @@ The payoff: fewer hallucinations, graceful degradation when the knowledge base d
                               ▼                         ▼                         ▼
                     ┌──────────────────┐     ┌────────────────────┐    ┌───────────────────┐
                     │  Pinecone (vectors)│     │ SqliteSaver         │    │ LangSmith          │
-                    │  text-embedding-3- │     │ (per-thread short-  │    │ (trace every node, │
-                    │  large              │     │ term memory)        │    │  every LLM call)   │
+                    │  gemini-embedding- │     │ (per-thread short-  │    │ (trace every node, │
+                    │  001, 512-dim       │     │ term memory)        │    │  every LLM call)   │
                     └──────────────────┘     └────────────────────┘    └───────────────────┘
                               ▲
                               │
@@ -131,7 +152,8 @@ Clarity CRAG/
 
 | Layer            | Choice                                             |
 |-------------------|-----------------------------------------------------|
-| LLM + embeddings  | OpenAI `gpt-4o-mini` + `text-embedding-3-large`     |
+| LLM (chat)        | Gemini `gemini-2.5-flash` (free tier), fallback Groq `qwen/qwen3-32b` |
+| Embeddings        | Gemini `gemini-embedding-001` (512-dim, free tier), fallback local `jinaai/jina-embeddings-v2-small-en` (FastEmbed/ONNX) |
 | Orchestration     | LangGraph `StateGraph`                              |
 | Vector store      | Pinecone (serverless)                               |
 | Short-term memory | LangGraph `SqliteSaver` (per `thread_id`)            |
@@ -153,7 +175,7 @@ python -m venv ../.venv && source ../.venv/bin/activate
 pip install -r requirements.txt
 
 cp .env.example .env
-# now edit .env and fill in: OPENAI_API_KEY, PINECONE_API_KEY, TAVILY_API_KEY
+# now edit .env and fill in: GEMINI_API_KEY, GROQ_API_KEY, PINECONE_API_KEY, TAVILY_API_KEY
 # (LANGCHAIN_* keys are optional but recommended - see Observability below)
 
 # one-time: embed documents/*.pdf into Pinecone
@@ -224,8 +246,8 @@ This writes to `evaluation/results/`:
 
 <!-- RESULTS_TABLE_START -->
 > 📊 **Run `python evaluation/run_eval.py` to populate this section with real numbers** —
-> it needs live `OPENAI_API_KEY`/`PINECONE_API_KEY`/`TAVILY_API_KEY` in `backend/.env` and a
-> populated Pinecone index, so no numbers are hard-coded here yet.
+> it needs live `GEMINI_API_KEY`/`GROQ_API_KEY`/`PINECONE_API_KEY`/`TAVILY_API_KEY` in
+> `backend/.env` and a populated Pinecone index, so no numbers are hard-coded here yet.
 <!-- RESULTS_TABLE_END -->
 
 ---
@@ -273,10 +295,16 @@ A single chat page, dark themed, indigo→violet accent:
 
 ## 🩹 Troubleshooting
 
-- **"Invalid API key" from Pinecone/OpenAI** — fill in `backend/.env` (copy from
+- **"Invalid API key" from Pinecone/Gemini/Groq** — fill in `backend/.env` (copy from
   `backend/.env.example`) and restart `uvicorn`.
 - **Frontend can't reach the API** — make sure `uvicorn` is running on port 8000; the dev
   server proxy in `vite.config.js` targets `http://localhost:8000`.
 - **`ingest.py` says no PDFs found** — drop your source PDFs into `documents/`.
-- **Pinecone index dimension mismatch** — the index is created with `dimension=3072` to match
-  `text-embedding-3-large`; if you change `EMBEDDING_MODEL`, delete and recreate the index.
+- **Pinecone index dimension mismatch** — the index is created with `dimension=512` to match
+  `gemini-embedding-001` (truncated via Matryoshka Representation Learning) and the
+  `jina-embeddings-v2-small-en` fallback; if you change `EMBEDDING_MODEL`/`EMBEDDING_DIMENSION`,
+  delete and recreate the Pinecone index, then re-run `ingest.py`.
+- **Gemini free-tier rate limit / outage** — the app automatically falls back to Groq's
+  `qwen/qwen3-32b` for chat and to the local `jina-embeddings-v2-small-en` model for embeddings,
+  so a single Gemini hiccup shouldn't break a request; sustained Gemini downtime just means every
+  request pays Groq/local-embedding latency instead.

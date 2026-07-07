@@ -1,21 +1,27 @@
 # Already present in the notebook environment - pinned to what was verified working
 fastapi==0.115.11
 uvicorn[standard]==0.34.0
-langchain==0.3.23
+langchain==0.3.30
 langchain-community==0.3.21
-langchain-openai==0.3.12
 langchain-pinecone==0.2.13
 pinecone==6.0.2
-langsmith==0.3.18
-openai==1.73.0
+langchain-core==0.3.86
+langsmith==0.3.45
 pypdf==5.4.0
 python-dotenv==1.0.1
 
 # New for this build
-langgraph>=0.2.60
+langgraph==0.6.11
 langgraph-checkpoint-sqlite>=2.0.0
-langchain-tavily>=0.1.0
+langchain-tavily==0.2.17
+aiohttp>=3.11.14,<4.0.0
 ragas>=0.2.10
 pandas>=2.2.3
 matplotlib>=3.10.1
 tabulate>=0.9.0
+
+# LLM + embeddings: Gemini 2.5 Flash (free tier) primary, Groq Qwen3 fallback for
+# chat, local FastEmbed (ONNX) fallback for embeddings
+langchain-google-genai==2.1.12
+langchain-groq==0.2.5
+fastembed==0.8.0

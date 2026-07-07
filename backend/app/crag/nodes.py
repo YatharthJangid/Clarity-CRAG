@@ -6,7 +6,7 @@ from langchain_tavily import TavilySearch
 from pydantic import BaseModel
 
 from app.config import settings
-from app.crag.llm import llm
+from app.crag.llm import llm, structured
 from app.crag.prompts import answer_prompt, doc_eval_prompt, filter_prompt, rewrite_prompt
 from app.crag.state import State
 from app.crag.vectorstore import get_retriever
@@ -26,7 +26,7 @@ class DocEvalScore(BaseModel):
     reason: str
 
 
-doc_eval_chain = doc_eval_prompt | llm.with_structured_output(DocEvalScore)
+doc_eval_chain = doc_eval_prompt | structured(DocEvalScore)
 
 
 def eval_each_doc_node(state: State) -> dict:
@@ -74,7 +74,7 @@ class KeepOrDrop(BaseModel):
     keep: bool
 
 
-filter_chain = filter_prompt | llm.with_structured_output(KeepOrDrop)
+filter_chain = filter_prompt | structured(KeepOrDrop)
 
 
 # -----------------------------
@@ -109,7 +109,7 @@ class WebQuery(BaseModel):
     query: str
 
 
-rewrite_chain = rewrite_prompt | llm.with_structured_output(WebQuery)
+rewrite_chain = rewrite_prompt | structured(WebQuery)
 
 
 def rewrite_query_node(state: State) -> dict:
