@@ -20,8 +20,11 @@ pandas>=2.2.3
 matplotlib>=3.10.1
 tabulate>=0.9.0
 
-# LLM + embeddings: Gemini 2.5 Flash (free tier) primary, Groq Qwen3 fallback for
-# chat, local FastEmbed (ONNX) fallback for embeddings
+# Chat LLM: a loop of free HuggingFace-hosted open models (via HF Inference
+# Providers) is primary, Gemini 2.5 Flash and Groq Qwen3 are the last two fallback
+# tiers. Embeddings: Gemini primary, local FastEmbed (ONNX) fallback.
+langchain-huggingface==0.3.1
+huggingface-hub>=0.33.4,<1.0
 langchain-google-genai==2.1.12
 langchain-groq==0.2.5
 fastembed==0.8.0

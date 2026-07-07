@@ -17,6 +17,7 @@ os.environ.setdefault("LANGCHAIN_PROJECT", "Clarity CRAG")
 class Settings:
     gemini_api_key: str = os.environ.get("GEMINI_API_KEY", "")
     groq_api_key: str = os.environ.get("GROQ_API_KEY", "")
+    hf_token: str = os.environ.get("HF_TOKEN", "")
     tavily_api_key: str = os.environ.get("TAVILY_API_KEY", "")
 
     pinecone_api_key: str = os.environ.get("PINECONE_API_KEY", "")
@@ -24,10 +25,15 @@ class Settings:
     pinecone_cloud: str = os.environ.get("PINECONE_CLOUD", "aws")
     pinecone_region: str = os.environ.get("PINECONE_REGION", "us-east-1")
 
-    # Gemini 2.5 Flash (free tier) is primary for both chat and embeddings; Groq's
-    # Qwen3 model is the fallback chat model when Gemini errors out or rate-limits.
-    # Groq has no embeddings endpoint, so the embeddings fallback is a local
-    # FastEmbed (ONNX, no torch/tensorflow) model instead - see app/crag/vectorstore.py.
+    # Chat model chain: a loop of free, high-volume HuggingFace-hosted open models
+    # (routed through HF's Inference Providers) is primary, since Gemini's free tier
+    # turned out to be very restrictive (~20 requests/day) for how many LLM calls
+    # a single CRAG question makes (grade every doc + filter every strip). Gemini and
+    # Groq's Qwen3 stay wired in as the last two fallback tiers after the HF loop.
+    hf_chat_models: list[str] = os.environ.get(
+        "HF_CHAT_MODELS",
+        "meta-llama/Llama-3.3-70B-Instruct,Qwen/Qwen2.5-72B-Instruct,meta-llama/Llama-3.1-70B-Instruct",
+    ).split(",")
     chat_model: str = os.environ.get("CHAT_MODEL", "gemini-2.5-flash")
     fallback_chat_model: str = os.environ.get("FALLBACK_CHAT_MODEL", "qwen/qwen3-32b")
 

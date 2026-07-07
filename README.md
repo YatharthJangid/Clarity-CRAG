@@ -31,19 +31,24 @@ Built on top of an iterative six-notebook research process, then productionized 
 
 ## 📚 Table of contents
 
-- [📄 The paper this is built on](#-the-paper-this-is-built-on)
-- [🧠 What is CRAG, and why does it matter?](#-what-is-crag-and-why-does-it-matter)
-- [🏗️ Architecture](#️-architecture)
-- [🕸️ The graph](#️-the-graph)
-- [📂 Project structure](#-project-structure)
-- [🧰 Tech stack](#-tech-stack)
-- [🚀 Getting started](#-getting-started)
-- [🔭 LangSmith observability](#-langsmith-observability)
-- [🧪 Evaluation: CRAG vs naive RAG](#-evaluation-crag-vs-naive-rag)
-- [📓 The notebook evolution (1 → 6)](#-the-notebook-evolution-1--6)
-- [🗺️ API reference](#️-api-reference)
-- [🎨 Frontend tour](#-frontend-tour)
-- [🩹 Troubleshooting](#-troubleshooting)
+- [✨ Clarity CRAG — Corrective RAG Study Assistant](#-clarity-crag--corrective-rag-study-assistant)
+  - [📄 The paper this is built on](#-the-paper-this-is-built-on)
+  - [📚 Table of contents](#-table-of-contents)
+  - [🧠 What is CRAG, and why does it matter?](#-what-is-crag-and-why-does-it-matter)
+  - [Dashboard](#dashboard)
+  - [🏗️ Architecture](#️-architecture)
+  - [🕸️ The graph](#️-the-graph)
+  - [📂 Project structure](#-project-structure)
+  - [🧰 Tech stack](#-tech-stack)
+  - [🚀 Getting started](#-getting-started)
+    - [1. Backend](#1-backend)
+    - [2. Frontend](#2-frontend)
+  - [🔭 LangSmith observability](#-langsmith-observability)
+  - [🧪 Evaluation: CRAG vs naive RAG](#-evaluation-crag-vs-naive-rag)
+  - [📓 The notebook evolution (1 → 6)](#-the-notebook-evolution-1--6)
+  - [🗺️ API reference](#️-api-reference)
+  - [🎨 Frontend tour](#-frontend-tour)
+  - [🩹 Troubleshooting](#-troubleshooting)
 
 ---
 
@@ -64,7 +69,11 @@ Plain RAG has a blind spot: it retrieves top-*k* chunks and trusts them uncondit
 The payoff: fewer hallucinations, graceful degradation when the knowledge base doesn't cover a question, and a transparent verdict you can show the user (see the badges in the chat UI 👇).
 
 ---
+## Dashboard 
 
+<p align="center"><img src="assets/Dashboard_CRAG.png" alt="CRAG concept diagram" width="640"></p>
+
+---
 ## 🏗️ Architecture
 
 ```
@@ -152,7 +161,7 @@ Clarity CRAG/
 
 | Layer            | Choice                                             |
 |-------------------|-----------------------------------------------------|
-| LLM (chat)        | Gemini `gemini-2.5-flash` (free tier), fallback Groq `qwen/qwen3-32b` |
+| LLM (chat)        | A loop of free HuggingFace-hosted open models (`Llama-3.3-70B-Instruct`, `Qwen2.5-72B-Instruct`, `Llama-3.1-70B-Instruct`, via HF Inference Providers) is primary, falling through to Gemini `gemini-2.5-flash` then Groq `qwen/qwen3-32b` |
 | Embeddings        | Gemini `gemini-embedding-001` (512-dim, free tier), fallback local `jinaai/jina-embeddings-v2-small-en` (FastEmbed/ONNX) |
 | Orchestration     | LangGraph `StateGraph`                              |
 | Vector store      | Pinecone (serverless)                               |
@@ -175,7 +184,7 @@ python -m venv ../.venv && source ../.venv/bin/activate
 pip install -r requirements.txt
 
 cp .env.example .env
-# now edit .env and fill in: GEMINI_API_KEY, GROQ_API_KEY, PINECONE_API_KEY, TAVILY_API_KEY
+# now edit .env and fill in: HF_TOKEN, GEMINI_API_KEY, GROQ_API_KEY, PINECONE_API_KEY, TAVILY_API_KEY
 # (LANGCHAIN_* keys are optional but recommended - see Observability below)
 
 # one-time: embed documents/*.pdf into Pinecone
@@ -246,7 +255,7 @@ This writes to `evaluation/results/`:
 
 <!-- RESULTS_TABLE_START -->
 > 📊 **Run `python evaluation/run_eval.py` to populate this section with real numbers** —
-> it needs live `GEMINI_API_KEY`/`GROQ_API_KEY`/`PINECONE_API_KEY`/`TAVILY_API_KEY` in
+> it needs live `HF_TOKEN`/`GEMINI_API_KEY`/`GROQ_API_KEY`/`PINECONE_API_KEY`/`TAVILY_API_KEY` in
 > `backend/.env` and a populated Pinecone index, so no numbers are hard-coded here yet.
 <!-- RESULTS_TABLE_END -->
 
@@ -295,8 +304,8 @@ A single chat page, dark themed, indigo→violet accent:
 
 ## 🩹 Troubleshooting
 
-- **"Invalid API key" from Pinecone/Gemini/Groq** — fill in `backend/.env` (copy from
-  `backend/.env.example`) and restart `uvicorn`.
+- **"Invalid API key" from Pinecone/HuggingFace/Gemini/Groq** — fill in `backend/.env` (copy
+  from `backend/.env.example`) and restart `uvicorn`.
 - **Frontend can't reach the API** — make sure `uvicorn` is running on port 8000; the dev
   server proxy in `vite.config.js` targets `http://localhost:8000`.
 - **`ingest.py` says no PDFs found** — drop your source PDFs into `documents/`.
@@ -304,7 +313,13 @@ A single chat page, dark themed, indigo→violet accent:
   `gemini-embedding-001` (truncated via Matryoshka Representation Learning) and the
   `jina-embeddings-v2-small-en` fallback; if you change `EMBEDDING_MODEL`/`EMBEDDING_DIMENSION`,
   delete and recreate the Pinecone index, then re-run `ingest.py`.
-- **Gemini free-tier rate limit / outage** — the app automatically falls back to Groq's
-  `qwen/qwen3-32b` for chat and to the local `jina-embeddings-v2-small-en` model for embeddings,
-  so a single Gemini hiccup shouldn't break a request; sustained Gemini downtime just means every
-  request pays Groq/local-embedding latency instead.
+- **A chat request is slow / an HF model errors out** — the chat LLM chain has five tiers:
+  `HF_CHAT_MODELS` (tried in order) → Gemini → Groq. Open-weight models occasionally emit a
+  malformed structured-output call (e.g. a string instead of a boolean); that tier gets one
+  quick retry before the chain moves to the next model. A single request grades every
+  retrieved doc and filters every context sentence, so it can make many LLM calls — expect
+  extra latency (not failure) if several tiers have to be tried in the same request.
+- **Gemini free-tier rate limit** — Gemini sits after the HF loop and before Groq in the chat
+  chain, and is also the sole embeddings primary (with a local `jina-embeddings-v2-small-en`
+  fallback); its free tier caps out around 20 requests/day, so heavy testing can exhaust it -
+  the app keeps working via the other tiers, just slower.
