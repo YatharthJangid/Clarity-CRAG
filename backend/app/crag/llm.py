@@ -27,42 +27,38 @@ def _build_hf_chat(repo_id: str) -> ChatHuggingFace:
     return ChatHuggingFace(llm=endpoint)
 
 
-# A loop of free, high-volume HuggingFace-hosted open models (routed through HF's
-# Inference Providers) is primary - Gemini's free tier turned out to be too
-# restrictive (~20 requests/day) for how many LLM calls a single CRAG question makes
-# (grade every doc + filter every strip). Gemini and Groq's Qwen3 stay wired in
-# unchanged as the last two fallback tiers, after every HF model has been tried.
-hf_chats = [_build_hf_chat(repo_id) for repo_id in settings.hf_chat_models]
+# ---------------------------------------------------------------------------
+# Option A: Gemini is primary, Groq is fallback.
+# Bypasses HuggingFace Inference Providers which require paid credits (402).
+# ---------------------------------------------------------------------------
+primary_llm = ChatGoogleGenerativeAI(
+    model=settings.chat_model,
+    temperature=0,
+    google_api_key=settings.gemini_api_key,
+    max_retries=1,
+)
+fallback_llm = ChatGroq(
+    model=settings.fallback_chat_model,
+    temperature=0,
+    groq_api_key=settings.groq_api_key,
+)
 
-llm = hf_chats[0].with_fallbacks(hf_chats[1:] + [primary_llm, fallback_llm])
-
-
-def _hf_structured(chat: ChatHuggingFace, schema):
-    """HuggingFace's `with_structured_output` only supports a dict/JSON-schema for
-    tool-calling - a Pydantic class raises `NotImplementedError` there - so the
-    schema is converted to a dict up front and the result coerced back into the
-    Pydantic `schema` afterward, to match what Gemini/Groq's chains return.
-
-    Open-weight models occasionally mis-type a tool-call argument (e.g. emitting
-    the string "false" instead of the boolean `false`), which the provider rejects
-    server-side as a 400 before any response reaches this chain - retrying once
-    resolves it most of the time without needing a different model.
-    """
-    schema_dict = schema.model_json_schema()
-    schema_dict["title"] = schema.__name__
-    raw_chain = chat.with_structured_output(schema_dict, method="function_calling")
-    return (raw_chain | RunnableLambda(lambda d: schema(**d))).with_retry(stop_after_attempt=2)
+llm = primary_llm.with_fallbacks([fallback_llm])
 
 
 def structured(schema):
-    """Build a Runnable that returns `schema`, looping through every HF model
-    first and falling through to Gemini, then Groq, exactly as `llm` above does.
+    """Build a Runnable that returns `schema`, trying Gemini first and falling through to Groq."""
+    def _coerce(res):
+        if res is None:
+            raise ValueError(f"Model returned None for {schema.__name__}")
+        if isinstance(res, dict):
+            return schema(**res)
+        return res
 
-    Qwen's tool-calling occasionally misfires on a structured-output call
-    (`tool_use_failed`) even when the service itself is healthy, so the Groq tier
-    gets one quick retry of its own on top of taking over for Gemini.
-    """
-    fallback_structured = fallback_llm.with_structured_output(schema).with_retry(stop_after_attempt=2)
-    gemini_structured = primary_llm.with_structured_output(schema).with_fallbacks([fallback_structured])
-    hf_structured_chats = [_hf_structured(chat, schema) for chat in hf_chats]
-    return hf_structured_chats[0].with_fallbacks(hf_structured_chats[1:] + [gemini_structured])
+    primary_structured = (primary_llm.with_structured_output(schema) | RunnableLambda(_coerce))
+    fallback_structured = (
+        (fallback_llm.with_structured_output(schema) | RunnableLambda(_coerce))
+        .with_retry(stop_after_attempt=2)
+    )
+
+    return primary_structured.with_fallbacks([fallback_structured])

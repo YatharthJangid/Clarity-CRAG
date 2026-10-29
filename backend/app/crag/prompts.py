@@ -21,17 +21,18 @@ doc_eval_prompt = ChatPromptTemplate.from_messages(
 )
 
 # -----------------------------
-# Sentence-level relevance filter
+# Sentence-level relevance filter (batch)
 # -----------------------------
 filter_prompt = ChatPromptTemplate.from_messages(
     [
         (
             "system",
-            "You are a strict relevance filter.\n"
-            "Return keep=true only if the sentence directly helps answer the question.\n"
-            "Use ONLY the sentence. Output JSON only.",
+            "You are a strict relevance filter for RAG.\n"
+            "Given a question and a list of candidate sentences from documents, select and return ONLY the sentences that directly help answer the question.\n"
+            "Discard irrelevant, redundant, or boilerplate sentences.\n"
+            "Output JSON with kept_sentences.",
         ),
-        ("human", "Question: {question}\n\nSentence:\n{sentence}"),
+        ("human", "Question: {question}\n\nCandidate Sentences:\n{sentences}"),
     ]
 )
 

@@ -31,13 +31,27 @@ doc_eval_chain = doc_eval_prompt | structured(DocEvalScore)
 
 def eval_each_doc_node(state: State) -> dict:
     q = state["question"]
+    docs = state["docs"]
     scores: List[float] = []
     good: List[Document] = []
 
-    for d in state["docs"]:
-        out = doc_eval_chain.invoke({"question": q, "chunk": d.page_content})
-        scores.append(out.score)
-        if out.score > settings.lower_threshold:
+    if not docs:
+        return {
+            "good_docs": [],
+            "verdict": "INCORRECT",
+            "reason": "No documents retrieved from vector store.",
+        }
+
+    inputs = [{"question": q, "chunk": d.page_content} for d in docs]
+    try:
+        results = doc_eval_chain.batch(inputs, config={"max_concurrency": 4}, return_exceptions=True)
+    except Exception:
+        results = [None] * len(docs)
+
+    for d, out in zip(docs, results):
+        score = out.score if (out and not isinstance(out, Exception) and hasattr(out, "score")) else 0.0
+        scores.append(score)
+        if score > settings.lower_threshold:
             good.append(d)
 
     if any(s > settings.upper_threshold for s in scores):
@@ -70,11 +84,11 @@ def decompose_to_sentences(text: str) -> List[str]:
     return [s.strip() for s in sentences if len(s.strip()) > 20]
 
 
-class KeepOrDrop(BaseModel):
-    keep: bool
+class RefinedStrips(BaseModel):
+    kept_sentences: List[str]
 
 
-filter_chain = filter_prompt | structured(KeepOrDrop)
+filter_chain = filter_prompt | structured(RefinedStrips)
 
 
 # -----------------------------
@@ -94,9 +108,22 @@ def refine(state: State) -> dict:
         docs_to_use = state["good_docs"] + state["web_docs"]
 
     context = "\n\n".join(d.page_content for d in docs_to_use).strip()
-    strips = decompose_to_sentences(context)
+    strips = decompose_to_sentences(context)[:20]
 
-    kept: List[str] = [s for s in strips if filter_chain.invoke({"question": q, "sentence": s}).keep]
+    kept: List[str] = []
+    if strips:
+        formatted_sentences = "\n".join(f"- {s}" for s in strips)
+        try:
+            out = filter_chain.invoke({"question": q, "sentences": formatted_sentences})
+            if out and hasattr(out, "kept_sentences") and out.kept_sentences:
+                kept = out.kept_sentences
+            else:
+                kept = strips
+        except Exception:
+            kept = strips
+    else:
+        kept = []
+
     refined_context = "\n".join(kept).strip()
 
     return {"strips": strips, "kept_strips": kept, "refined_context": refined_context}
@@ -113,8 +140,13 @@ rewrite_chain = rewrite_prompt | structured(WebQuery)
 
 
 def rewrite_query_node(state: State) -> dict:
-    out = rewrite_chain.invoke({"question": state["question"]})
-    return {"web_query": out.query}
+    try:
+        out = rewrite_chain.invoke({"question": state["question"]})
+        if out and hasattr(out, "query") and out.query:
+            return {"web_query": out.query}
+    except Exception:
+        pass
+    return {"web_query": state["question"]}
 
 
 # -----------------------------

@@ -161,7 +161,7 @@ Clarity CRAG/
 
 | Layer            | Choice                                             |
 |-------------------|-----------------------------------------------------|
-| LLM (chat)        | A loop of free HuggingFace-hosted open models (`Llama-3.3-70B-Instruct`, `Qwen2.5-72B-Instruct`, `Llama-3.1-70B-Instruct`, via HF Inference Providers) is primary, falling through to Gemini `gemini-2.5-flash` then Groq `qwen/qwen3-32b` |
+| LLM (chat)        | Google Gemini (`gemini-3.5-flash-lite` / `gemini-1.5-flash`) primary, falling through to Groq (`llama-3.1-8b-instant`), with single-call batch refinement to stay within free-tier rate limits |
 | Embeddings        | Gemini `gemini-embedding-001` (512-dim, free tier), fallback local `jinaai/jina-embeddings-v2-small-en` (FastEmbed/ONNX) |
 | Orchestration     | LangGraph `StateGraph`                              |
 | Vector store      | Pinecone (serverless)                               |
