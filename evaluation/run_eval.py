@@ -85,27 +85,75 @@ def crag_answer(question: str) -> tuple[str, list[str]]:
     return result["answer"], (contexts or [""])
 
 
-def run_pipeline(golden, answer_fn, label):
+import time
+
+
+def sleep_countdown(seconds: int, message: str):
+    print(f"\n⏳ {message} ({seconds}s)...", flush=True)
+    step = 10
+    for remaining in range(seconds, 0, -step):
+        wait = min(step, remaining)
+        print(f"   Waiting... {remaining}s remaining", flush=True)
+        time.sleep(wait)
+    print("   Resuming!\n", flush=True)
+
+
+def run_pipeline(golden, answer_fn, label, delay_between: float = 0.0):
     rows = []
     for i, item in enumerate(golden, 1):
-        print(f"  [{label}] {i}/{len(golden)}: {item['question'][:60]}...")
+        print(f"  [{label}] {i}/{len(golden)}: {item['question'][:60]}...", flush=True)
         answer, contexts = answer_fn(item["question"])
+
+        # Ensure response is a string, not a list (Gemini can return list of parts)
+        if isinstance(answer, list):
+            answer_str = "\n".join(str(x) for x in answer)
+        elif not isinstance(answer, str):
+            answer_str = str(answer)
+        else:
+            answer_str = answer
+
+        # Ensure contexts is a list of strings
+        if isinstance(contexts, str):
+            contexts_list = [contexts]
+        elif isinstance(contexts, list):
+            contexts_list = [str(c) for c in contexts]
+        else:
+            contexts_list = [str(contexts)] if contexts else [""]
+
         rows.append(
             {
                 "user_input": item["question"],
-                "response": answer,
-                "retrieved_contexts": contexts,
+                "response": answer_str,
+                "retrieved_contexts": contexts_list,
                 "reference": item["ground_truth"],
             }
         )
+        if delay_between > 0 and i < len(golden):
+            time.sleep(delay_between)
     return rows
+
+
+from ragas.run_config import RunConfig
 
 
 def score(rows, name):
     dataset = EvaluationDataset.from_list(rows)
-    # ragas wants a plain BaseChatModel, not the RunnableWithFallbacks that `llm`
-    # is - so it gets the raw Gemini model directly rather than the fallback chain.
-    result = evaluate(dataset=dataset, metrics=METRICS, llm=primary_llm, embeddings=embeddings)
+
+    # Avoid 400 Multiple candidates error on Gemini free tier
+    try:
+        answer_relevancy.strictness = 1
+    except Exception:
+        pass
+
+    # Use max_workers=1 and retries so ragas does not flood Gemini beyond 15 RPM
+    run_config = RunConfig(max_workers=1, timeout=120, max_retries=10, max_wait=60)
+    result = evaluate(
+        dataset=dataset,
+        metrics=METRICS,
+        llm=primary_llm,
+        embeddings=embeddings,
+        run_config=run_config,
+    )
     df = result.to_pandas()
     df.to_csv(RESULTS_DIR / f"per_question_{name}.csv", index=False)
     return df
@@ -162,14 +210,23 @@ def save_chart(comparison: pd.DataFrame):
 def main():
     golden = json.loads((Path(__file__).resolve().parent / "golden_dataset.json").read_text())
 
-    print(f"Running Naive RAG over {len(golden)} questions...")
-    naive_rows = run_pipeline(golden, naive_rag_answer, "naive")
+    naive_csv = RESULTS_DIR / "per_question_naive.csv"
+    if naive_csv.exists() and naive_csv.stat().st_size > 500:
+        print(f"Found existing Naive RAG scores at {naive_csv}, reusing them to preserve quota.")
+        naive_df = pd.read_csv(naive_csv)
+    else:
+        print(f"Running Naive RAG over {len(golden)} questions...")
+        naive_rows = run_pipeline(golden, naive_rag_answer, "naive", delay_between=2.0)
+        sleep_countdown(120, "Cooldown before scoring Naive RAG with ragas")
+        print("Scoring Naive RAG with ragas...")
+        naive_df = score(naive_rows, "naive")
+        sleep_countdown(120, "Cooldown between Naive and CRAG")
 
     print(f"Running CRAG over {len(golden)} questions...")
-    crag_rows = run_pipeline(golden, crag_answer, "crag")
+    # 18s delay between questions ensures CRAG's ~5 calls stay safely under 15 RPM
+    crag_rows = run_pipeline(golden, crag_answer, "crag", delay_between=18.0)
 
-    print("Scoring Naive RAG with ragas...")
-    naive_df = score(naive_rows, "naive")
+    sleep_countdown(120, "Cooldown before scoring CRAG with ragas")
 
     print("Scoring CRAG with ragas...")
     crag_df = score(crag_rows, "crag")

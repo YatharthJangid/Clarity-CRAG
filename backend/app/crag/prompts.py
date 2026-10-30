@@ -13,8 +13,7 @@ doc_eval_prompt = ChatPromptTemplate.from_messages(
             "- 1.0: chunk alone is sufficient to answer fully/mostly\n"
             "- 0.0: chunk is irrelevant\n"
             "Be conservative with high scores.\n"
-            "Also return a short reason.\n"
-            "Output JSON only.",
+            "Also return a short reason.",
         ),
         ("human", "Question: {question}\n\nChunk:\n{chunk}"),
     ]

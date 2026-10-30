@@ -46,19 +46,60 @@ fallback_llm = ChatGroq(
 llm = primary_llm.with_fallbacks([fallback_llm])
 
 
-def structured(schema):
-    """Build a Runnable that returns `schema`, trying Gemini first and falling through to Groq."""
-    def _coerce(res):
-        if res is None:
-            raise ValueError(f"Model returned None for {schema.__name__}")
-        if isinstance(res, dict):
-            return schema(**res)
+import json
+import re
+
+
+def _extract_schema(res, schema):
+    if res is None:
+        raise ValueError(f"Model returned None for {schema.__name__}")
+    if isinstance(res, schema):
         return res
+    if isinstance(res, dict):
+        return schema(**res)
 
-    primary_structured = (primary_llm.with_structured_output(schema) | RunnableLambda(_coerce))
-    fallback_structured = (
-        (fallback_llm.with_structured_output(schema) | RunnableLambda(_coerce))
-        .with_retry(stop_after_attempt=2)
-    )
+    text = ""
+    if hasattr(res, "content"):
+        text = str(res.content)
+    elif isinstance(res, str):
+        text = res
 
-    return primary_structured.with_fallbacks([fallback_structured])
+    if text:
+        # Strip markdown fences if present (```json ... ```)
+        cleaned = re.sub(r"^```(?:json)?\s*", "", text.strip(), flags=re.MULTILINE)
+        cleaned = re.sub(r"\s*```$", "", cleaned, flags=re.MULTILINE)
+        match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+        if match:
+            data = json.loads(match.group(0))
+            return schema(**data)
+
+    raise ValueError(f"Could not parse {schema.__name__} from model output: {res}")
+
+
+def _build_model_chain(model, schema):
+    def _call_and_parse(prompt_input):
+        # 1. Try structured output (tool-calling)
+        try:
+            res = model.with_structured_output(schema).invoke(prompt_input)
+            if res is not None:
+                if isinstance(res, schema):
+                    return res
+                if isinstance(res, dict):
+                    return schema(**res)
+        except Exception:
+            pass
+
+        # 2. Fallback to raw generation and regex JSON extraction
+        raw = model.invoke(prompt_input)
+        return _extract_schema(raw, schema)
+
+    return RunnableLambda(_call_and_parse)
+
+
+def structured(schema):
+    """Build a Runnable that returns `schema`, trying Gemini first and falling through to Groq.
+    Handles both tool calls and direct JSON text output seamlessly.
+    """
+    gemini_chain = _build_model_chain(primary_llm, schema)
+    groq_chain = _build_model_chain(fallback_llm, schema)
+    return gemini_chain.with_fallbacks([groq_chain])
